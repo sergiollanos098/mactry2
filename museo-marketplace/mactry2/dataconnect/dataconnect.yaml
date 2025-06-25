@@ -1,0 +1,12 @@
+specVersion: "v1"
+serviceId: "museo-marketplace"
+location: "us-central1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "fdcdb"
+      cloudSql:
+        instanceId: "museo-marketplace-fdc"
+      # schemaValidation: "COMPATIBLE"
+connectorDirs: ["./connector"]
