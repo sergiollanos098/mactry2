@@ -7,6 +7,8 @@ import { useAuth } from "../../auth/auth";
 import { deleteDoc, doc as firestoreDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
 import emailjs from "@emailjs/browser";
+import { useKeenSlider } from "keen-slider/react";
+import "keen-slider/keen-slider.min.css";
 
 const BAD_WORDS = [
   "puta", "mierda", "idiota", "imbecil", "estupido", "pendejo", "cabron", "maldito", "joder", "fuck", "shit", "bitch"
@@ -40,12 +42,8 @@ const ProductDynamic = () => {
   // Reserva
   const [showReserva, setShowReserva] = useState(false);
   const [reserva, setReserva] = useState({
-    nombres: "",
-    apellidos: "",
-    correo: "",
-    celular: "",
-    tipoDocumento: "DNI",
-    documento: ""
+  nombreCompleto: "",
+  correo: "",
   });
   const [reservaError, setReservaError] = useState("");
   const [reservaSuccess, setReservaSuccess] = useState("");
@@ -67,35 +65,44 @@ const ProductDynamic = () => {
     );
     setLoadingReviews(false);
   };
+  
 
   useEffect(() => {
     fetchReviews();
     // eslint-disable-next-line
   }, [id]);
 
+const sugeridos = products
+    .filter((p) => p.id !== id)
+    .slice(0, 6);
+
+  const [sliderRef, slider] = useKeenSlider<HTMLDivElement>({
+    slides: { perView: 2, spacing: 16 },
+    breakpoints: {
+      "(min-width: 640px)": { slides: { perView: 4, spacing: 24 } },
+    },
+    loop: true,
+  });
+
   // Validación de datos de reserva
   function validarDatos() {
-    const soloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/;
-    if (!soloLetras.test(reserva.nombres) || !soloLetras.test(reserva.apellidos)) return false;
-    if (!/\S+@\S+\.\S+/.test(reserva.correo)) return false;
-    if (!/^\d{8,}$/.test(reserva.celular)) return false;
-    if (reserva.tipoDocumento === "DNI" && !/^\d{8}$/.test(reserva.documento)) return false;
-    if (reserva.tipoDocumento === "Extranjero" && reserva.documento.length < 6) return false;
-    return true;
-  }
+  if (!reserva.nombreCompleto.trim()) return false;
+  if (!/\S+@\S+\.\S+/.test(reserva.correo)) return false;
+  return true;
+}
 
-  const handleReservaChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setReserva({ ...reserva, [e.target.name]: e.target.value });
+  const handleReservaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  setReserva({ ...reserva, [e.target.name]: e.target.value });
   };
 
   const handleReservaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setReservaError("");
     setReservaSuccess("");
-    if (!reserva.nombres || !reserva.apellidos || !reserva.correo || !reserva.celular || !reserva.documento) {
-      setReservaError("Completa todos los campos.");
-      return;
-    }
+    if (!reserva.nombreCompleto || !reserva.correo) {
+  setReservaError("Completa todos los campos.");
+  return;
+}
     if (!validarDatos()) {
       setReservaError("Datos inválidos. Verifica los campos.");
       return;
@@ -105,9 +112,10 @@ const ProductDynamic = () => {
     const db = getFirestore(app);
     const token = uuidv4();
     await addDoc(collection(db, "reservas"), {
-  ...reserva,
+  nombreCompleto: reserva.nombreCompleto,
+  correo: reserva.correo,
   productId: id,
-  producto: product?.nombre || "", // <-- Agrega esto
+  producto: product?.nombre || "",
   fecha: Timestamp.now(),
   estado: "pendiente",
   token,
@@ -122,8 +130,8 @@ const ProductDynamic = () => {
   "service_lczuxk7",
   "template_a5jfa69",
   {
-    ...reserva,
-    to_email: reserva.correo, // <-- ¡Esto es clave!
+    nombreCompleto: reserva.nombreCompleto,
+    to_email: reserva.correo,
     confirm_url: confirmUrl,
     producto: product?.nombre || "",
   },
@@ -132,13 +140,9 @@ const ProductDynamic = () => {
       setReservaSuccess("¡Reserva realizada y notificada por correo!");
       setShowReserva(false);
       setReserva({
-        nombres: "",
-        apellidos: "",
-        correo: "",
-        celular: "",
-        tipoDocumento: "DNI",
-        documento: ""
-      });
+  nombreCompleto: "",
+  correo: "",
+});
     } catch {
       setReservaError("Error al enviar correo de notificación.");
     }
@@ -184,7 +188,9 @@ const ProductDynamic = () => {
       />
       <div className="flex-1">
         <h1 className="text-3xl font-bold mb-4">{product.nombre}</h1>
-        <p className="text-lg mb-6">{product.descripcion}</p>
+        <p className="text-lg mb-6" style={{ whiteSpace: "pre-line" }}>
+  {product.descripcion}
+</p>
         <p className="text-2xl font-semibold mb-4">S./{product.precio}</p>
         <div className="flex gap-4 mb-6">
           <button
@@ -199,60 +205,24 @@ const ProductDynamic = () => {
         {showReserva && (
           <form onSubmit={handleReservaSubmit} className="bg-white p-4 rounded shadow space-y-3 mb-4">
             <h3 className="font-bold text-lg mb-2">Reserva este producto</h3>
-            <input
-              type="text"
-              name="nombres"
-              placeholder="Nombres"
-              value={reserva.nombres}
-              onChange={handleReservaChange}
-              className="w-full px-3 py-2 border rounded"
-              required
-            />
-            <input
-              type="text"
-              name="apellidos"
-              placeholder="Apellidos"
-              value={reserva.apellidos}
-              onChange={handleReservaChange}
-              className="w-full px-3 py-2 border rounded"
-              required
-            />
-            <input
-              type="email"
-              name="correo"
-              placeholder="Correo"
-              value={reserva.correo}
-              onChange={handleReservaChange}
-              className="w-full px-3 py-2 border rounded"
-              required
-            />
-            <input
-              type="tel"
-              name="celular"
-              placeholder="Celular"
-              value={reserva.celular}
-              onChange={handleReservaChange}
-              className="w-full px-3 py-2 border rounded"
-              required
-            />
-            <select
-              name="tipoDocumento"
-              value={reserva.tipoDocumento}
-              onChange={handleReservaChange}
-              className="w-full px-3 py-2 border rounded"
-            >
-              <option value="DNI">DNI</option>
-              <option value="Extranjero">Documento extranjero</option>
-            </select>
-            <input
-              type="text"
-              name="documento"
-              placeholder={reserva.tipoDocumento === "DNI" ? "DNI (8 dígitos)" : "Documento extranjero"}
-              value={reserva.documento}
-              onChange={handleReservaChange}
-              className="w-full px-3 py-2 border rounded"
-              required
-            />
+  <input
+    type="text"
+    name="nombreCompleto"
+    placeholder="Nombres y Apellidos"
+    value={reserva.nombreCompleto}
+    onChange={handleReservaChange}
+    className="w-full px-3 py-2 border rounded"
+    required
+  />
+  <input
+    type="email"
+    name="correo"
+    placeholder="Correo"
+    value={reserva.correo}
+    onChange={handleReservaChange}
+    className="w-full px-3 py-2 border rounded"
+    required
+  />
             {reservaError && <div className="text-red-600">{reservaError}</div>}
             {reservaSuccess && <div className="text-green-600">{reservaSuccess}</div>}
             <div className="flex gap-2">
@@ -315,6 +285,48 @@ const ProductDynamic = () => {
             </ul>
           )}
         </div>
+        {sugeridos.length > 0 && (
+          <div className="mt-12">
+            <h2 className="text-xl font-semibold mb-4">También podría interesarte</h2>
+            <div className="relative">
+              <button
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white border rounded-full shadow p-2 hover:bg-gray-100"
+                onClick={() => slider.current?.prev()}
+                aria-label="Anterior"
+                style={{ left: -24 }}
+              >
+                &#8592;
+              </button>
+              <div ref={sliderRef} className="keen-slider">
+                {sugeridos.map((prod) => (
+                  <div key={prod.id} className="keen-slider__slide flex flex-col items-center bg-white rounded shadow p-3 ">
+                    <img
+                      src={prod.imagen}
+                      alt={prod.nombre}
+                      className="w-28 h-28 object-contain mb-2"
+                    />
+                    <div className="font-medium text-center">{prod.nombre}</div>
+                    <div className="text-red-600 font-bold text-lg">S/ {prod.precio}</div>
+                    <a
+                      href={`/product/${prod.id}`}
+                      className="mt-2 text-blue-600 underline text-sm"
+                    >
+                      Ver producto
+                    </a>
+                  </div>
+                ))}
+              </div>
+              <button
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white border rounded-full shadow p-2 hover:bg-gray-100"
+                onClick={() => slider.current?.next()}
+                aria-label="Siguiente"
+                style={{ right: -24 }}
+              >
+                &#8594;
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
